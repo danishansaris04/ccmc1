@@ -1331,7 +1331,7 @@ select.c-inp option { background: #071c26; }
 <script>
 /* ════════════ FIREBASE ════════════ */
 const ccmcConfig = {
-    apiKey: "AIzaSyDPOtXmvVmk00FDUB0khBldybTJItrjXkE",
+  apiKey: "AIzaSyDPOtXmvVmk00FDUB0khBldybTJItrjXkE",
   authDomain: "ccmc-personal.firebaseapp.com",
   databaseURL: "https://ccmc-personal-default-rtdb.firebaseio.com",
   projectId: "ccmc-personal",
@@ -2008,32 +2008,96 @@ function approveAll(){
 }
 function rejectRequest(key){ if(!confirm('Reject karein? User block ho jayega.')) return; cdb.ref('user_access/'+key).update({status:'blocked',rejectedAt:Date.now(),rejectedAtStr:new Date().toLocaleString()}); }
 
-/* ── ID TABLE ── */
-function renderIdTable(){
-  const tbody=document.getElementById('idTableBody'); if(!tbody) return;
-  const search=(document.getElementById('idSearch').value||'').toLowerCase();
-  const filtered=Object.entries(allAccessUsers).filter(([k,v])=>!search||(v.name||'').toLowerCase().includes(search)||(v.accessId||'').toLowerCase().includes(search));
-  if(!filtered.length){ tbody.innerHTML='<div class="u-trow"><div style="color:var(--muted2);font-size:12px;text-align:center;padding:20px;width:100%">No records found</div></div>'; return; }
-  tbody.innerHTML=filtered.map(([key,u])=>{
-    const sbCls=u.status==='approved'?'ubg-g':u.status==='pending'?'ubg-y':'ubg-r';
-    const sbLabel=u.status==='approved'?'APPROVED':u.status==='pending'?'PENDING':'BLOCKED';
-    const blockBtn=u.status==='blocked'
-      ?`<button class="u-tbtn u-tbtn-unblock" onclick="changeStatus('${key}','approved')"><i class="fa-solid fa-lock-open"></i>Unblock</button>`
-      :`<button class="u-tbtn u-tbtn-block" onclick="changeStatus('${key}','blocked')"><i class="fa-solid fa-lock"></i>Block</button>`;
+// 1. Table mein Quick Freeze Button add karne ke liye
+function renderIdTable() {
+  const tbody = document.getElementById('idTableBody'); 
+  if (!tbody) return;
+  const search = (document.getElementById('idSearch').value || '').toLowerCase();
+  
+  const filtered = Object.entries(allAccessUsers).filter(([k,v]) => 
+    !search || (v.name || '').toLowerCase().includes(search) || (v.accessId || '').toLowerCase().includes(search)
+  );
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<div class="u-trow"><div style="color:var(--tx3);font-size:12px;text-align:center;padding:20px;width:100%">No records found</div></div>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(([key, u]) => {
+    const isApproved = u.status === 'approved';
+    const isFrozen = u.status === 'frozen';
+    const isBlocked = u.status === 'blocked';
+    
+    const sbCls = isApproved ? 'ubg-g' : (isFrozen ? 'ubg-y' : (isBlocked ? 'ubg-r' : 'ubg-p'));
+    const sbLabel = (u.status || 'PENDING').toUpperCase();
+
+    // Freeze Toggle
+    const freezeBtn = isFrozen
+      ? `<button class="u-tbtn u-tbtn-unblock" onclick="changeStatus('${key}','approved')"><i class="fa-solid fa-sun"></i> Unfreeze</button>`
+      : `<button class="u-tbtn u-tbtn-edit" onclick="changeStatus('${key}','frozen')"><i class="fa-solid fa-snowflake"></i> Freeze</button>`;
+
+    // Block Toggle
+    const blockBtn = isBlocked
+      ? `<button class="u-tbtn u-tbtn-unblock" onclick="changeStatus('${key}','approved')"><i class="fa-solid fa-lock-open"></i> Unblock</button>`
+      : `<button class="u-tbtn u-tbtn-block" onclick="changeStatus('${key}','blocked')"><i class="fa-solid fa-lock"></i> Block</button>`;
+
     return `<div class="u-trow">
-      <div class="u-tc-name"><div class="u-tname">${u.name||key}</div></div>
+      <div class="u-tc-name"><div class="u-tname">${u.name || key}</div></div>
       <div class="u-tc-acts">
-        <button class="u-tbtn u-tbtn-edit" onclick="openEditModal('${key}')"><i class="fa-solid fa-pen"></i>Edit</button>
+        ${freezeBtn}
         ${blockBtn}
+        <button class="u-tbtn u-tbtn-edit" onclick="openEditModal('${key}')"><i class="fa-solid fa-pen"></i></button>
         <button class="u-tbtn u-tbtn-del" onclick="deleteUser('${key}')"><i class="fa-solid fa-trash"></i></button>
       </div>
       <div class="u-tc-meta">
-        ${u.accessId?`<span class="u-tid">${u.accessId}</span>`:''}
+        ${u.accessId ? `<span class="u-tid">${u.accessId}</span>` : ''}
         <span class="u-badge ${sbCls}">${sbLabel}</span>
-        ${u.requestedAtStr?`<span class="u-tdate">${u.requestedAtStr}</span>`:''}
+        <span class="u-tdate">${u.requestedAtStr || ''}</span>
       </div>
     </div>`;
   }).join('');
+}
+
+// 2. Edit Modal mein Dropdown option add karne ke liye
+function openEditModal(key) {
+  const u = allAccessUsers[key]; 
+  if (!u) return;
+  
+  document.getElementById('editKey').value = key;
+  document.getElementById('editName').value = u.name || '';
+  document.getElementById('editId').value = u.accessId || '';
+  
+  const statusSelect = document.getElementById('editStatus');
+  statusSelect.innerHTML = `
+    <option value="approved">✅ Approved</option>
+    <option value="frozen">❄️ Freeze (Invisible Hang)</option>
+    <option value="pending">⏳ Pending</option>
+    <option value="blocked">🚫 Blocked</option>
+  `;
+  statusSelect.value = u.status || 'pending';
+  document.getElementById('editModal').classList.add('open');
+}
+
+// 2. Edit Modal mein Frozen status add karne ke liye (HTML aur JS):
+function openEditModal(key) {
+  const u = allAccessUsers[key]; 
+  if (!u) return;
+  
+  document.getElementById('editKey').value = key;
+  document.getElementById('editName').value = u.name || '';
+  document.getElementById('editId').value = u.accessId || '';
+  
+  // Modal ke dropdown mein options update karein
+  const statusSelect = document.getElementById('editStatus');
+  statusSelect.innerHTML = `
+    <option value="approved">✅ Approved</option>
+    <option value="frozen">❄️ Frozen (Invisible Hang)</option>
+    <option value="pending">⏳ Pending</option>
+    <option value="blocked">🚫 Blocked</option>
+  `;
+  statusSelect.value = u.status || 'pending';
+  
+  document.getElementById('editModal').classList.add('open');
 }
 
 function changeStatus(key,s){ if(allAccessUsers[key]) allAccessUsers[key].status=s; renderIdTable(); cdb.ref('user_access/'+key).update({status:s}); }
@@ -2101,4 +2165,4 @@ cdb.ref('user_access').on('value',snap=>{
 
 </script>
 </body>
-  </html>
+            </html>
